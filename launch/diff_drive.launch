@@ -1,0 +1,19 @@
+<launch>
+    <arg name="rate" default="100.0"/>
+    <arg name="ticks_per_meter" default="2451"/>
+    <arg name="base_width" default="0.5123"/>
+    <arg name="base_frame_id" default="base_link"/>
+    <arg name="odom_frame_id" default="odom"/>
+    <arg name="odom_frame_id" default="odom"/>
+    <arg name="encoder_min" default="0"/>
+    <arg name="encoder_max" default="65535"/>
+    <node pkg="differential_drive" type="diff_tf.py" name="differential_drive" output="screen">
+        <param name="ticks_meter" value="$(arg ticks_per_meter)"/>
+        <param name="rate" value="$(arg rate)"/>
+        <param name="base_width" value="$(arg base_width)"/>
+        <param name="odom_frame_id" value="$(arg odom_frame_id)"/>
+        <param name="base_frame_id" value="$(arg base_frame_id)"/>
+        <param name="encoder_min" value="$(arg encoder_min)"/>
+        <param name="encoder_max" value="$(arg encoder_max)"/>
+    </node>
+</launch>
