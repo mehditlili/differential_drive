@@ -53,22 +53,26 @@ diff_controller.py - controller for a differential drive
 
 import rospy
 from math import sin, cos
-from geometry_msgs.msg import Quaternion
+from geometry_msgs.msg import TransformStamped
 from nav_msgs.msg import Odometry
-from tf.broadcaster import TransformBroadcaster
 from sensor_msgs.msg import JointState
+import tf2_ros
 
 
 class DiffTf:
     def __init__(self):
         # Parameters
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf2_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf2_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.get_param('rate', 100.0)  # the rate at which to publish the transform
         self.ticks_meter = float(
             rospy.get_param('ticks_meter', 2451))  # The number of wheel encoder ticks per meter of travel
         self.base_width = float(rospy.get_param('~base_width', 0.56))  # The wheel base width in meters
 
-        self.base_frame_id = rospy.get_param('base_frame_id', 'base_link')  # the name of the base frame of the robot
+        self.base_frame_id = rospy.get_param('base_frame_id', 'base_link2')  # the name of the base frame of the robot
         self.odom_frame_id = rospy.get_param('odom_frame_id', 'odom2')  # the name of the odometry reference frame
+        self.encoder_ticks_topic = rospy.get_param('encoder_ticks_topic', '/encoder_ticks')  # the name of the odometry reference frame
 
         self.encoder_min = rospy.get_param('encoder_min', 0)
         self.encoder_max = rospy.get_param('encoder_max', 65535)
@@ -96,11 +100,11 @@ class DiffTf:
         self.dx = 0  # speeds in x/rotation
         self.dr = 0
         self.then = rospy.Time.now()
-
         # subscriptions
-        rospy.Subscriber("/encoder_ticks", JointState, self.encoder_callback)
-        self.odomPub = rospy.Publisher("/odom2", Odometry, queue_size=1)
-        self.odomBroadcaster = TransformBroadcaster()
+        rospy.Subscriber(self.encoder_ticks_topic, JointState, self.encoder_callback)
+        self.odomPub = rospy.Publisher(self.odom_frame_id, Odometry, queue_size=1)
+        self.odomBroadcaster = tf2_ros.TransformBroadcaster()
+        self.transform_stamped = TransformStamped()
 
     def spin(self):
         r = rospy.Rate(self.rate)
@@ -147,26 +151,23 @@ class DiffTf:
                     self.th += th
 
                 # publish the odom information
-                quaternion = Quaternion()
-                quaternion.x = 0.0
-                quaternion.y = 0.0
-                quaternion.z = sin(self.th / 2)
-                quaternion.w = cos(self.th / 2)
-                self.odomBroadcaster.sendTransform(
-                    (self.x, self.y, 0),
-                    (quaternion.x, quaternion.y, quaternion.z, quaternion.w),
-                    rospy.Time.now(),
-                    self.base_frame_id,
-                    self.odom_frame_id
-                )
+                self.transform_stamped.transform.rotation  .x = 0.0
+                self.transform_stamped.transform.rotation  .y = 0.0
+                self.transform_stamped.transform.rotation  .z = sin(self.th / 2)
+                self.transform_stamped.transform.rotation  .w = cos(self.th / 2)
+                self.transform_stamped.transform.translation.x = self.x
+                self.transform_stamped.transform.translation.y = self.y
+                self.transform_stamped.transform.translation.z = 0.0
+                self.transform_stamped.header.frame_id = self.odom_frame_id
+                self.transform_stamped.child_frame_id = self.base_frame_id
+                self.transform_stamped.header.stamp = now
+                self.odomBroadcaster.sendTransform(self.transform_stamped)
 
                 odom = Odometry()
                 odom.header.stamp = now
                 odom.header.frame_id = self.odom_frame_id
-                odom.pose.pose.position.x = self.x
-                odom.pose.pose.position.y = self.y
-                odom.pose.pose.position.z = 0
-                odom.pose.pose.orientation = quaternion
+                odom.pose.pose.position = self.transform_stamped.transform.translation
+                odom.pose.pose.orientation = self.transform_stamped.transform.rotation
                 odom.child_frame_id = self.base_frame_id
                 odom.twist.twist.linear.x = self.dx
                 odom.twist.twist.linear.y = 0
